@@ -1,0 +1,24 @@
+services:
+  chromadb-sentence:
+    image: chromadb/chroma:1.1.1
+    container_name: chromadb-sentence
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../volumes/chroma_sentence:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=FALSE
+
+  chromadb-error-words:
+    image: chromadb/chroma:1.1.1
+    container_name: chromadb-error-words
+    ports:
+      - "8001:8000"
+    volumes:
+      - ../../volumes/chroma_error_words:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=FALSE
