@@ -19,7 +19,7 @@ class posCategory(str, Enum):
     SYMBOL = "symbol" # 기호
     UNKNOWN = "unknown" # 불능 범주
 
-CATEGPRY_SETS: Dict[posCategory, Set[str]] = {
+CATEGORY_SETS: Dict[posCategory, Set[str]] = {
     posCategory.NOUN: {"NNG", "NNP", "NR", "NP"},
     posCategory.DEPENDENT_NOUN: {"NNB"},
     posCategory.VERB: {"VV", "VCP", "VCN"},
@@ -37,3 +37,14 @@ CATEGPRY_SETS: Dict[posCategory, Set[str]] = {
     posCategory.SYMBOL: {"SL", "SH", "SW"},
     posCategory.UNKNOWN: {"NF", "NA", "NV"},
 }
+
+def is_category(pos_tag: str, category: posCategory) -> bool:
+    """
+    입력된 형태소 태그(pos_tag)가 지정된 품사 범주(category)에 속하는지 확인합니다.
+    """
+    # 1. CATEGORY_SETS에서 해당 범주의 상세 태그 집합을 가져옵니다.
+    #    (태그 집합이 정의되지 않았을 경우 빈 집합을 사용합니다.)
+    target_tags: Set[str] = CATEGORY_SETS.get(category, set())
+    
+    # 2. 입력된 pos_tag가 해당 집합 안에 있는지 확인합니다.
+    return pos_tag in target_tags
