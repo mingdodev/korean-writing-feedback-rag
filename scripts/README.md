@@ -9,8 +9,9 @@
     ```JSON
         [
             {
-                "file_number": "데이터 셋 파일의 인덱스",
+                "file_number": "데이터 셋 파일의 인덱스 + 4자리 UUID",
                 "grade": "TOPIK 등급",
+                "mother_language": "모어",
                 "original_sentence": "원본 문장",
                 "words": [
                     {"form": "어절", "morphs": [
