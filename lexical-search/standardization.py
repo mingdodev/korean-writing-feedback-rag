@@ -74,3 +74,5 @@ def standardize_word(word_data: dict) -> str:
         standardized_parts.append(pos_tag)
     
     return ''.join(standardized_parts)
+
+print(standardize_word({"form": "책이나", "morphs": [{"morph": "책", "pos": "NNG"}, {"morph": "이나", "pos": "JC"}]}))  

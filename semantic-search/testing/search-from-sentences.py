@@ -22,7 +22,7 @@ except Exception as e:
     exit()
 
 # 4. 검색어 정의
-query_text = "학교가 끝난 후에 동생하고 약속 있어요."
+query_text = "어제 학교 앞에서 귀엽은 고양이를 보았다."
 n_results = 5
 
 # 5. 검색어 벡터화
