@@ -4,7 +4,7 @@ volumes
 semantic-search/preprocessing
 
 # Cache files
-bff/app/__pycache__/
+**/__pycache__/
 
 # MacOS system files
 .DS_Store
