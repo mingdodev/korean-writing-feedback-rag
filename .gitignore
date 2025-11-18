@@ -1,3 +1,10 @@
+# Data that should not be exposed
 data
 volumes
 semantic-search/preprocessing
+
+# Cache files
+bff/app/__pycache__/
+
+# MacOS system files
+.DS_Store
