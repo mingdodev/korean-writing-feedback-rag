@@ -66,6 +66,44 @@ class ClovaStudioClient:
 
     # ------------------------------------------------------------------
 
+    # 일반 API 요청 메서드
+
+    async def chat(
+        self,
+        messages: List[Message],
+        top_p: float = 0.8,
+        top_k: int = 0,
+        max_completion_tokens: int = 512,
+        temperature: float = 0.5,
+        repetition_penalty: float = 1.1,
+    ) -> str:
+
+        payload: Dict[str, Any] = {
+            "messages": messages,
+            "topP": top_p,
+            "topK": top_k,
+            "maxCompletionTokens": max_completion_tokens,
+            "temperature": temperature,
+            "repetitionPenalty": repetition_penalty,
+        }
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            resp = await client.post(
+                self.endpoint,
+                headers=self._build_headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+
+        self._check_status(body)
+
+        content: str = body["result"]["message"]["content"]
+
+        return content
+
+    # ------------------------------------------------------------------
+
     # Structed Output 기반 API 요청 메서드
 
     async def chat_structred(
@@ -78,7 +116,7 @@ class ClovaStudioClient:
         temperature: float = 0.5,
         repetition_penalty: float = 1.1,
     ) -> T:
-        
+
         schema = self._extract_pydantic_schema(response_model)
 
         payload: Dict[str, Any] = {
@@ -102,7 +140,7 @@ class ClovaStudioClient:
             )
             response.raise_for_status()
             body = response.json()
-        
+
         self._check_status(body)
 
         content_str: str = body["result"]["message"]["content"]
@@ -110,7 +148,9 @@ class ClovaStudioClient:
         try:
             content_dict = json.loads(content_str)
         except json.JSONDecodeError as e:
-            raise ClovaStudioError(f"응답 content를 JSON으로 파싱할 수 없습니다: {e}\ncontent={content_str!r}")
+            raise ClovaStudioError(
+                f"응답 content를 JSON으로 파싱할 수 없습니다: {e}\ncontent={content_str!r}"
+            )
 
         if hasattr(response_model, "model_validate"):
             return response_model.model_validate(content_dict)
