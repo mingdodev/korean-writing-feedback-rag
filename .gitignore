@@ -8,3 +8,6 @@ semantic-search/preprocessing
 
 # MacOS system files
 .DS_Store
+
+# FastAPI server
+bff/.env
