@@ -11,6 +11,7 @@ class GrammarFeedback(BaseModel):
 class Sentence(BaseModel):
     sentence_id: int
     original_sentence: str
+    is_error_candidate: bool = False
     grammar_feedback: Optional[GrammarFeedback] = None
 
 class FeedbackResponse(BaseModel):
