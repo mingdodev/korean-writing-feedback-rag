@@ -1,7 +1,11 @@
 import asyncio
+
+from typing import List
+
 from .context_service import ContextService
 from .grammar_service import GrammarService
 from .sentence_service import SentenceService
+from .collect_event_publisher import CollectEventPublisher, GrammarFeedbackEvent
 from ..schemas.feedback_request import FeedbackRequest
 from ..schemas.feedback_response import FeedbackResponse, ContextFeedback, GrammarFeedback, Sentence
 
@@ -11,10 +15,21 @@ class FeedbackFacade:
         context_service: ContextService,
         grammar_service: GrammarService,
         sentence_service: SentenceService,
+        collect_event_publisher: CollectEventPublisher,
     ):
         self.context_service = context_service
         self.grammar_service = grammar_service
         self.sentence_service = sentence_service
+        self.collect_event_publisher = collect_event_publisher
+
+    def _build_grammar_event(self, sentence: Sentence) -> GrammarFeedbackEvent:
+        gf = sentence.grammar_feedback
+        return GrammarFeedbackEvent(
+            sentence_id=sentence.id,
+            original_text=sentence.original_sentence,
+            corrected_text=gf.corrected_sentence,
+            feedback=gf.feedback
+        )
 
     async def create_feedback(self, request: FeedbackRequest) -> FeedbackResponse:
         # 1. 문맥 피드백 코루틴 준비
@@ -49,7 +64,20 @@ class FeedbackFacade:
             if feedback:
                 sentence.grammar_feedback = feedback
 
-        # 8. 최종 응답 조립
+        events: List[GrammarFeedbackEvent] = [
+            self._build_grammar_event(sentence)
+            for sentence in error_sentences
+            if sentence.grammar_feedback is not None
+        ]
+
+        # 8. 별도의 스레드에서 새로운 데이터 수집 이벤트 발행
+        if events:
+            asyncio.create_task(
+                asyncio.to_thread(self.collect_event_publisher.publish_safe, events)
+            )
+
+
+        # 9. 최종 응답 조립
         return FeedbackResponse(
             context_feedback=context_feedback,
             sentences=sentences,

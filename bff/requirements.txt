@@ -7,3 +7,4 @@ konlpy == 0.6.0
 mecab-ko == 1.0.2
 mecab-ko-dic == 1.0.0
 mecab-python == 1.0.0
+kafka-python == 2.3.0

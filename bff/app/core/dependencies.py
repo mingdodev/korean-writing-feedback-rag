@@ -1,9 +1,14 @@
+import os
+import json
+from kafka import KafkaProducer
+
 from ..clients.context_llm_client import ContextLLMClient
 from ..clients.grammar_llm_client import GrammarLLMClient
 from ..services.context_service import ContextService
 from ..services.grammar_service import GrammarService
 from ..services.sentence_service import SentenceService
 from ..services.feedback_facade import FeedbackFacade
+from ..services.collect_event_publisher import CollectEventPublisher
 
 context_client = ContextLLMClient()
 grammar_client = GrammarLLMClient()
@@ -12,10 +17,25 @@ context_service = ContextService(context_client)
 grammar_service = GrammarService(grammar_client)
 sentence_service = SentenceService()
 
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "collect-events")
+
+kafka_producer = KafkaProducer(
+    bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+    value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
+)
+
+collect_event_publisher = CollectEventPublisher(
+    producer=kafka_producer,
+    topic=KAFKA_TOPIC,
+    fallback_repo=None,
+)
+
 feedback_facade = FeedbackFacade(
     context_service=context_service,
     grammar_service=grammar_service,
     sentence_service=sentence_service,
+    collect_event_publisher=collect_event_publisher,
 )
 
 def get_feedback_facade() -> FeedbackFacade:
