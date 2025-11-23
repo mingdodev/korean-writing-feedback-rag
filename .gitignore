@@ -11,3 +11,6 @@ semantic-search/preprocessing
 
 # FastAPI server
 bff/.env
+
+# local environment
+docker-compose.local.yml
