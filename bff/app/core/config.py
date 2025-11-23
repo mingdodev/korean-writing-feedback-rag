@@ -8,9 +8,10 @@ class Settings(BaseSettings):
 
     KAFKA_BOOTSTRAP_SERVERS: str
     KAFKA_TOPIC: str
-    
+
+    CHROMA_HOST: str
+    CHROMA_COLLECTION_NAME: str
     ELASTICSEARCH_HOST: str
-    CHROMA_SENTENCE_HOST: str
 
     class Config:
         env_file = ".env"

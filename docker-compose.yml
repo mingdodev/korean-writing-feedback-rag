@@ -56,8 +56,9 @@ services:
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - KAFKA_TOPIC=collect-events
+      - CHROMA_HOST=http://chromadb:8000
+      - CHROMA_COLLECTION_NAME=korean_sentences
       - ELASTICSEARCH_HOST=http://elasticsearch:9200
-      - CHROMA_SENTENCE_HOST=http://chromadb:8000
     depends_on:
       - chromadb
       - elasticsearch
