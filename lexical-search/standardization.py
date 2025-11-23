@@ -73,6 +73,4 @@ def standardize_word(word_data: dict) -> str:
         # 4. 그 외 태그 (DETERMINER, ADVERB 등)는 태그만 표기
         standardized_parts.append(pos_tag)
     
-    return ''.join(standardized_parts)
-
-print(standardize_word({"form": "책이나", "morphs": [{"morph": "책", "pos": "NNG"}, {"morph": "이나", "pos": "JC"}]}))  
+    return ''.join(standardized_parts) 
