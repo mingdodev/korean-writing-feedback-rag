@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     CHROMA_COLLECTION_NAME: str
     ELASTICSEARCH_HOST: str
 
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5431
+    POSTGRES_DB: str = "grammar"
+    POSTGRES_USER: str = "grammar"
+    POSTGRES_PASSWORD: str = "grammarpassword"
+
     class Config:
         env_file = ".env"
 

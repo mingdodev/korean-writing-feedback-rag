@@ -31,7 +31,7 @@ class ClovaStudioClient:
 
     # 헬퍼 메소드
 
-    def _buil_headers(self) -> Dict[str, str]:
+    def _build_headers(self) -> Dict[str, str]:
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
