@@ -24,17 +24,17 @@ services:
       - ./volumes/es-data:/usr/share/elasticsearch/data
 
   postgres:
-  image: postgres:18.1
-  container_name: grammar-postgres
-  environment:
-    - POSTGRES_USER=grammar
-    - POSTGRES_PASSWORD=grammarpassword
-    - POSTGRES_DB=grammar
-  ports:
-    - "5431:5432"
-  volumes:
-    - ./volumes/pgdata:/var/lib/postgresql
-    - ./grammar-info/initdb:/docker-entrypoint-initdb.d
+    image: postgres:18.1
+    container_name: grammar-postgres
+    environment:
+      - POSTGRES_USER=grammar
+      - POSTGRES_PASSWORD=grammarpassword
+      - POSTGRES_DB=grammar
+    ports:
+      - "5431:5432"
+    volumes:
+      - ./volumes/pgdata:/var/lib/postgresql
+      - ./grammar-info/initdb:/docker-entrypoint-initdb.d
 
   kafka:
     image: apache/kafka:4.1.1
@@ -58,7 +58,7 @@ services:
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
 
     volumes:
-      - ./volumes/kafka-data:/bitnami/kafka
+      - ./volumes/kafka-data:/var/lib/kafka/data
 
   api:
     platform: linux/amd64
@@ -68,11 +68,11 @@ services:
       - "8080:8080"
     environment:
       - CLOVA_API_KEY=${CLOVA_API_KEY}
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - KAFKA_TOPIC=collect-events
+      - ELASTICSEARCH_HOST=http://elasticsearch:9200
       - CHROMA_HOST=http://chromadb:8000
       - CHROMA_COLLECTION_NAME=korean_sentences
-      - ELASTICSEARCH_HOST=http://elasticsearch:9200
     depends_on:
       - chromadb
       - elasticsearch
@@ -82,7 +82,7 @@ services:
     build: ./collector
     container_name: collector
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - KAFKA_TOPIC=collect-events
       - CSV_PATH=/data/grammar_errors.csv
     volumes:
