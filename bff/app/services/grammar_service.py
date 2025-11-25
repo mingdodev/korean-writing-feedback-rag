@@ -1,5 +1,6 @@
 import asyncpg
 import chromadb
+import json
 from sentence_transformers import SentenceTransformer
 from urllib.parse import urlparse
 from typing import List, Dict, Any, Optional
@@ -163,13 +164,25 @@ class GrammarService:
 
         error_examples: List[ErrorExample] = []
 
-        if results.get('metadatas') and results.get('metadatas')[0]:
-            for metadata_dict in results['metadatas'][0]:
+        documents = results.get('documents', [[]])[0]
+        metadatas = results.get('metadatas', [[]])[0]
+
+        if documents and metadatas:
+            for doc, metadata_dict in zip(documents, metadatas):
                 try:
-                    original_sentence_from_db = metadata_dict.get('original_sentence')
-                    error_words_data = metadata_dict.get('error_words', [])
+                    original_sentence_from_db = doc 
+                    error_words_raw = metadata_dict.get('error_words')
+                    error_words_data = []
+
+                    if isinstance(error_words_raw, str):
+                        try:
+                            error_words_data = json.loads(error_words_raw)
+                        except json.JSONDecodeError:
+                            print(f"Failed to decode error_words JSON string: {error_words_raw}")
+                    elif isinstance(error_words_raw, list):
+                        error_words_data = error_words_raw
                     
-                    error_words: List[ErrorWord] = [ErrorWord(**ew) for ew in error_words_data]
+                    error_words: List[ErrorWord] = [ErrorWord(**ew) for ew in error_words_data if isinstance(ew, dict)]
 
                     example = ErrorExample(
                         original_sentence=original_sentence_from_db,
@@ -178,7 +191,7 @@ class GrammarService:
                     error_examples.append(example)
 
                 except Exception as e:
-                    print(f"Error processing ChromaDB result metadata: {e}")
+                    print(f"Error processing ChromaDB result metadata for doc '{doc}': {e}")
                     continue
 
         # 2. 1차 LLM 호출 
@@ -191,7 +204,19 @@ class GrammarService:
             correction_result_data: Dict[str, Any] = await self.client.get_corrected_sentence(first_llm_input)
             correction_result = CorrectionOutput(**correction_result_data)
         except Exception as e:
-            print(f"1st LLM call failed for '{sentence.original_sentence}': {e}")
+            print(f"1st LLM call failed for '{sentence.original_sentence}'. Error: {e}")
+            
+            print("--- LLM Request Payload (1st call) ---")
+            print(json.dumps(first_llm_input, indent=2, ensure_ascii=False))
+            print("--------------------------------------")
+
+            if hasattr(e, 'response'):
+                print("--- LLM Error Response Body ---")
+                try:
+                    print(json.dumps(e.response.json(), indent=2, ensure_ascii=False))
+                except (json.JSONDecodeError, AttributeError):
+                    print(e.response.text)
+                print("-----------------------------")
             raise
 
         corrected_sentence = correction_result.corrected_sentence
@@ -211,7 +236,19 @@ class GrammarService:
             final_feedback_data: Dict[str, Any] = await self.client.get_grammar_feedback(second_llm_input)
             final_feedback = GrammarFeedback(**final_feedback_data)
         except Exception as e:
-            print(f"2nd LLM call failed for '{sentence.original_sentence}': {e}")
+            print(f"2nd LLM call failed for '{sentence.original_sentence}'. Error: {e}")
+            
+            print("--- LLM Request Payload (2nd call) ---")
+            print(json.dumps(second_llm_input, indent=2, ensure_ascii=False))
+            print("--------------------------------------")
+
+            if hasattr(e, 'response'):
+                print("--- LLM Error Response Body ---")
+                try:
+                    print(json.dumps(e.response.json(), indent=2, ensure_ascii=False))
+                except (json.JSONDecodeError, AttributeError):
+                    print(e.response.text)
+                print("-----------------------------")
             raise
 
         return final_feedback
