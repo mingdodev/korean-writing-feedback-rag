@@ -73,10 +73,6 @@ class GrammarService:
         PostgreSQL 커넥션 풀을 사용하여 문법 DB를 비동기적으로 검색합니다.
         """
 
-        if GrammarService._pool is None:
-            # 풀이 초기화되지 않았다면 초기화 시도
-            await self.initialize_db_pool()
-        
         grammar_info_list: List[GrammarDBInfo] = []
         
         seen: set[str] = set()
@@ -92,61 +88,78 @@ class GrammarService:
 
         if not targets:
             return grammar_info_list
+        
+        try:
+            if GrammarService._pool is None:
+            # 풀이 초기화되지 않았다면 초기화 시도
+                await self.initialize_db_pool()
+            
+        except Exception as e:
+            print(f"PostgreSQL Pool initialization failed: {e}")
+            return []
 
         # 풀에서 커넥션을 대여하여 사용
-        async with GrammarService._pool.acquire() as conn:
-            # 트랜잭션 블록 시작
-            async with conn.transaction():
-                for elem in targets:
-                    row = await conn.fetchrow(
-                        """
-                        SELECT headword, pos, topic, meaning, form_info, constraints
-                        FROM grammar_items
-                        WHERE headword % $1
-                        ORDER BY similarity(headword, $2) DESC
-                        LIMIT 1;
-                        """,
-                        elem, elem,
-                    )
-                    
-                    if not row:
-                        continue
-                
-                    parts: List[str] = []
-
-                    if row.get("meaning"):
-                        parts.append(f"의미: {row['meaning']}")
-                    if row.get("form_info"):
-                        parts.append(f"형태 정보: {row['form_info']}")
-                    if row.get("constraints"):
-                        parts.append(f"제약: {row['constraints']}")
-                    if row.get("pos"):
-                        parts.append(f"품사: {row['pos']}")
-                    if row.get("topic"):
-                        parts.append(f"토픽 등급: {row['topic']}")
-
-                    explanation = " / ".join(parts) if parts else "설명 정보가 없습니다."
-
-                    grammar_info_list.append(
-                        GrammarDBInfo(
-                            grammar_element=row["headword"],
-                            explanation=explanation,
+        try:
+            async with GrammarService._pool.acquire() as conn:
+                # 트랜잭션 블록 시작
+                async with conn.transaction():
+                    for elem in targets:
+                        row = await conn.fetchrow(
+                            """
+                            SELECT headword, pos, topic, meaning, form_info, constraints
+                            FROM grammar_items
+                            WHERE headword % $1
+                            ORDER BY similarity(headword, $2) DESC
+                            LIMIT 1;
+                            """,
+                            elem, elem,
                         )
-                    )
+                        
+                        if not row:
+                            continue
+                    
+                        parts: List[str] = []
+
+                        if row.get("meaning"):
+                            parts.append(f"의미: {row['meaning']}")
+                        if row.get("form_info"):
+                            parts.append(f"형태 정보: {row['form_info']}")
+                        if row.get("constraints"):
+                            parts.append(f"제약: {row['constraints']}")
+                        if row.get("pos"):
+                            parts.append(f"품사: {row['pos']}")
+                        if row.get("topic"):
+                            parts.append(f"토픽 등급: {row['topic']}")
+
+                        explanation = " / ".join(parts) if parts else "설명 정보가 없습니다."
+
+                        grammar_info_list.append(
+                            GrammarDBInfo(
+                                grammar_element=row["headword"],
+                                explanation=explanation,
+                            )
+                        )
+        except Exception as e:
+            print(f"PostgreSQL query execution failed: {e}")
+            return []
 
         return grammar_info_list
     
     async def attach_grammar_feedback(self, sentence: Sentence) -> GrammarFeedback:
 
-        # 1. ChromaDB 쿼리
-        query_embedding = self.embedder.encode(sentence.original_sentence).tolist()
-        n_results = 5
+        try:
+            # 1. ChromaDB 쿼리
+            query_embedding = self.embedder.encode(sentence.original_sentence).tolist()
+            n_results = 5
 
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            include=['documents', 'metadatas', 'distances']
-        )
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=n_results,
+                include=['documents', 'metadatas', 'distances']
+            )
+        except Exception as e:
+            print(f"ChromaDB query failed for '{sentence.original_sentence}': {e}")
+            results = {'metadatas': [[]]}
 
         error_examples: List[ErrorExample] = []
 
@@ -174,8 +187,12 @@ class GrammarService:
             "error_examples": [ex.model_dump() for ex in error_examples]
         }
 
-        correction_result_data: Dict[str, Any] = await self.client.get_corrected_sentence(first_llm_input)
-        correction_result = CorrectionOutput(**correction_result_data)
+        try:
+            correction_result_data: Dict[str, Any] = await self.client.get_corrected_sentence(first_llm_input)
+            correction_result = CorrectionOutput(**correction_result_data)
+        except Exception as e:
+            print(f"1st LLM call failed for '{sentence.original_sentence}': {e}")
+            raise
 
         corrected_sentence = correction_result.corrected_sentence
         corrected_errors = correction_result.errors
@@ -190,7 +207,11 @@ class GrammarService:
             "grammar_db_info": [info.model_dump() for info in grammar_db_info_list]
         }
 
-        final_feedback_data: Dict[str, Any] = await self.client.get_grammar_feedback(second_llm_input)
-        final_feedback = GrammarFeedback(**final_feedback_data)
-        
+        try:
+            final_feedback_data: Dict[str, Any] = await self.client.get_grammar_feedback(second_llm_input)
+            final_feedback = GrammarFeedback(**final_feedback_data)
+        except Exception as e:
+            print(f"2nd LLM call failed for '{sentence.original_sentence}': {e}")
+            raise
+
         return final_feedback

@@ -53,16 +53,28 @@ class FeedbackFacade:
             grammar_tasks.append(task)
 
         # 5. 코루틴 동시 실행 및 응답 대기
-        results = await asyncio.gather(context_task, *grammar_tasks)
+        results = await asyncio.gather(
+            context_task,
+            *grammar_tasks,
+            return_exceptions=True
+        )
 
         # 6. 결과 분리
-        context_feedback: ContextFeedback = results[0]
+        context_result: ContextFeedback = results[0]
         grammar_feedbacks: list[GrammarFeedback | None] = results[1:]
 
+        if isinstance(context_result, Exception):
+            print(f"Context task failed: {context_result}")
+            context_feedback = ContextFeedback(feedback="문맥 피드백 생성에 실패했습니다.") 
+        else:
+            context_feedback: ContextFeedback = context_result
+
         # 7. 생성한 문법 피드백을 원본 문장 데이터에 연결
-        for sentence, feedback in zip(error_sentences, grammar_feedbacks):
-            if feedback:
-                sentence.grammar_feedback = feedback
+        for sentence, result in zip(error_sentences, grammar_feedbacks):
+            if isinstance(result, GrammarFeedback):
+                sentence.grammar_feedback = result
+            else:
+                print(f"Grammar task for '{sentence.original_sentence}' failed: {result}")
 
         events: List[GrammarFeedbackEvent] = [
             self._build_grammar_event(sentence)

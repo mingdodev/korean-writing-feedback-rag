@@ -14,7 +14,6 @@ T = TypeVar("T", bound=BaseModel)
 class ClovaStudioError(Exception):
     pass
 
-
 class ClovaStudioClient:
 
     def __init__(
