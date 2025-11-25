@@ -88,7 +88,7 @@ class ClovaStudioClient:
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             resp = await client.post(
-                self.endpoint,
+                self.url,
                 headers=self._build_headers(),
                 json=payload,
             )
@@ -134,7 +134,7 @@ class ClovaStudioClient:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
                 self.url,
-                headers=self._buil_headers(),
+                headers=self._build_headers(),
                 json=payload,
             )
             response.raise_for_status()
