@@ -1,5 +1,4 @@
-from pydantic import BaseModel
-from typing import Dict, Type, Any
+from typing import Dict, List, Any
 from ..schemas.feedback_response import CorrectionOutput, GrammarFeedback
 from ..llm.clova_client import ClovaStudioClient
 
@@ -43,20 +42,56 @@ SYSTEM_PROMPT_GRAMMAR_FEEDBACK = """
 """
 
 class GrammarLLMClient:
-
+    # ClovaStudioClient를 내부에서 사용한다고 가정
     def __init__(self, llm: ClovaStudioClient):
         self.llm = llm
 
+    def _format_error_examples(self, error_examples: List[Dict[str, Any]]) -> str:
+        """
+        오류 예시 리스트를 LLM이 읽기 쉬운 문자열로 포맷팅합니다.
+        """
+        formatted_list = []
+        
+        for i, example in enumerate(error_examples):
+            original_sentence = example.get("original_sentence", "문장 없음")
+            error_words = example.get("error_words", [])
+            
+            # 1. 원본 문장
+            entry = f"**{i + 1}. 원문:** {original_sentence}"
+            
+            # 2. 오류 상세 정보
+            error_details = []
+            if error_words:
+                for ew in error_words:
+                    text = ew.get("text", "오류 내용 없음")
+                    location = ew.get("error_location", "?")
+                    aspect = ew.get("error_aspect", "?")
+                    
+                    error_details.append(f"- [오류]: {text}")
+
+            if error_details:
+                entry += "\n   " + "\n   ".join(error_details)
+            
+            formatted_list.append(entry)
+
+        return "\n\n".join(formatted_list)
+
+
     async def get_corrected_sentence(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        
         original_sentence = payload["original_sentence"]
         error_examples = payload.get("error_examples", [])
+        
+        formatted_examples = self._format_error_examples(error_examples)
 
         user_content = (
             "다음은 한국어 학습자가 작성한 문장과, 유사한 오류를 포함한 예문들입니다.\n\n"
-            f"### 학습자 문장\n{original_sentence}\n\n"
-            f"### 유사 오류 예문(error_examples)\n{error_examples}\n\n"
+            f"### 학습자 문장\n'{original_sentence}'\n\n"
+            f"### 유사 오류 예문(Error Examples)\n"
+            f"{formatted_examples}\n\n"
             "위 정보를 참고하여, 학습자 문장을 자연스럽고 문법적으로 올바른 문장으로 교정하고,\n"
-            "교정 과정에서 중요한 문법 요소/형태를 errors 목록에 담아주세요."
+            "교정 과정에서 중요하게 다룬 문법 요소/형태를 'errors' 목록에 담아주세요. "
+            "응답은 반드시 지정된 JSON 스키마를 따르십시오."
         )
 
         messages = [
