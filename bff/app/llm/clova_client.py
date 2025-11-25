@@ -39,18 +39,9 @@ class ClovaStudioClient:
     @staticmethod
     def _extract_pydantic_schema(model: Type[BaseModel]) -> Dict[str, Any]:
         if hasattr(model, "model_json_schema"):
-            schema = model.model_json_schema()
+            return model.model_json_schema()
         else:
             raise TypeError("response_model은 Pydantic BaseModel을 상속해야 합니다.")
-
-        properties: Dict[str, Any] = schema.get("properties", {}) or {}
-        required: List[str] = list(properties.keys())
-
-        return {
-            "type": "object",
-            "properties": properties,
-            "required": required,
-        }
 
     @staticmethod
     def _check_status(body: Dict[str, Any]) -> None:
