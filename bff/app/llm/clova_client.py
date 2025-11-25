@@ -85,15 +85,38 @@ class ClovaStudioClient:
             "temperature": temperature,
             "repetitionPenalty": repetition_penalty,
         }
+        
+        print("\n" + "="*50)
+        print("[CLOVA API REQUEST (chat)]")
+        print(f"URL: {self.url}")
+        print("Payload:\n" + json.dumps(payload, indent=2, ensure_ascii=False))
+        print("="*50 + "\n")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(
-                self.url,
-                headers=self._build_headers(),
-                json=payload,
-            )
-            resp.raise_for_status()
-            body = resp.json()
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.post(
+                    self.url,
+                    headers=self._build_headers(),
+                    json=payload,
+                )
+                resp.raise_for_status()
+                body = resp.json()
+            
+            print("\n" + "-"*50)
+            print("[CLOVA API RESPONSE SUCCESS (chat)]")
+            print("Body:\n" + json.dumps(body, indent=2, ensure_ascii=False))
+            print("-"*50 + "\n")
+
+        except httpx.HTTPStatusError as e:
+            print("\n" + "#"*50)
+            print("[CLOVA API ERROR (HTTP Status Error)]")
+            print(f"Status: {e.response.status_code}")
+            print(f"Response Body:\n{e.response.text}")
+            print("#"*50 + "\n")
+            raise
+        except Exception as e:
+            print(f"An unexpected error occurred during Clova Studio API request: {e}")
+            raise
 
         self._check_status(body)
 
@@ -125,20 +148,45 @@ class ClovaStudioClient:
             "maxCompletionTokens": max_completion_tokens,
             "temperature": temperature,
             "repetitionPenalty": repetition_penalty,
+            "thinking": {"effort": "none"},
             "responseFormat": {
                 "type": "json",
                 "schema": schema,
             },
         }
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                self.url,
-                headers=self._build_headers(),
-                json=payload,
-            )
-            response.raise_for_status()
-            body = response.json()
+        print("\n" + "="*50)
+        print(f"[CLOVA API REQUEST (chat_structred) - Model: {response_model.__name__}]")
+        print(f"URL: {self.url}")
+        print("Payload:\n" + json.dumps(payload, indent=2, ensure_ascii=False))
+        print("="*50 + "\n")
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    self.url,
+                    headers=self._build_headers(),
+                    json=payload,
+                )
+                response.raise_for_status()
+                body = response.json()
+
+            print("\n" + "-"*50)
+            print("[CLOVA API RESPONSE SUCCESS (chat_structred)]")
+            print("Body:\n" + json.dumps(body, indent=2, ensure_ascii=False))
+            print("-"*50 + "\n")
+            
+
+        except httpx.HTTPStatusError as e:
+            print("\n" + "#"*50)
+            print("[CLOVA API ERROR (HTTP Status Error)]")
+            print(f"Status: {e.response.status_code}")
+            print(f"Response Body:\n{e.response.text}")
+            print("#"*50 + "\n")
+            raise
+        except Exception as e:
+            print(f"An unexpected error occurred during Clova Studio API request: {e}")
+            raise
 
         self._check_status(body)
 
