@@ -205,18 +205,6 @@ class GrammarService:
             correction_result = CorrectionOutput(**correction_result_data)
         except Exception as e:
             print(f"1st LLM call failed for '{sentence.original_sentence}'. Error: {e}")
-            
-            print("--- LLM Request Payload (1st call) ---")
-            print(json.dumps(first_llm_input, indent=2, ensure_ascii=False))
-            print("--------------------------------------")
-
-            if hasattr(e, 'response'):
-                print("--- LLM Error Response Body ---")
-                try:
-                    print(json.dumps(e.response.json(), indent=2, ensure_ascii=False))
-                except (json.JSONDecodeError, AttributeError):
-                    print(e.response.text)
-                print("-----------------------------")
             raise
 
         corrected_sentence = correction_result.corrected_sentence
@@ -237,18 +225,6 @@ class GrammarService:
             final_feedback = GrammarFeedback(**final_feedback_data)
         except Exception as e:
             print(f"2nd LLM call failed for '{sentence.original_sentence}'. Error: {e}")
-            
-            print("--- LLM Request Payload (2nd call) ---")
-            print(json.dumps(second_llm_input, indent=2, ensure_ascii=False))
-            print("--------------------------------------")
-
-            if hasattr(e, 'response'):
-                print("--- LLM Error Response Body ---")
-                try:
-                    print(json.dumps(e.response.json(), indent=2, ensure_ascii=False))
-                except (json.JSONDecodeError, AttributeError):
-                    print(e.response.text)
-                print("-----------------------------")
             raise
 
         return final_feedback
