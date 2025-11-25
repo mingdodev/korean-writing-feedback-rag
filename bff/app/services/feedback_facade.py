@@ -28,7 +28,7 @@ class FeedbackFacade:
             sentence_id=sentence.id,
             original_text=sentence.original_sentence,
             corrected_text=gf.corrected_sentence,
-            feedback=gf.feedback
+            feedbacks=gf.feedbacks
         )
 
     async def create_feedback(self, request: FeedbackRequest) -> FeedbackResponse:
@@ -75,7 +75,6 @@ class FeedbackFacade:
             asyncio.create_task(
                 asyncio.to_thread(self.collect_event_publisher.publish_safe, events)
             )
-
 
         # 9. 최종 응답 조립
         return FeedbackResponse(
