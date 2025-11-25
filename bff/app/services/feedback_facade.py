@@ -25,7 +25,7 @@ class FeedbackFacade:
     def _build_grammar_event(self, sentence: Sentence) -> GrammarFeedbackEvent:
         gf = sentence.grammar_feedback
         return GrammarFeedbackEvent(
-            sentence_id=sentence.id,
+            sentence_id=sentence.sentence_id,
             original_text=sentence.original_sentence,
             corrected_text=gf.corrected_sentence,
             feedbacks=gf.feedbacks
