@@ -1,7 +1,7 @@
-import os
 import json
 from kafka import KafkaProducer
 
+from .config import settings
 from ..clients.context_llm_client import ContextLLMClient
 from ..clients.grammar_llm_client import GrammarLLMClient
 from ..llm.clova_client import ClovaStudioClient
@@ -20,17 +20,14 @@ context_service = ContextService(context_client)
 grammar_service = GrammarService(grammar_client)
 sentence_service = SentenceService()
 
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "collect-events")
-
 kafka_producer = KafkaProducer(
-    bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+    bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
     value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
 )
 
 collect_event_publisher = CollectEventPublisher(
     producer=kafka_producer,
-    topic=KAFKA_TOPIC,
+    topic=settings.KAFKA_TOPIC,
     fallback_repo=None,
 )
 

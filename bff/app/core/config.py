@@ -6,8 +6,8 @@ class Settings(BaseSettings):
         "https://clovastudio.stream.ntruss.com/v3/chat-completions/HCX-007"
     )
 
-    KAFKA_BOOTSTRAP_SERVERS: str
-    KAFKA_TOPIC: str
+    KAFKA_BOOTSTRAP_SERVERS: str = "kafka:9092"
+    KAFKA_TOPIC: str = "collect-events"
 
     CHROMA_HOST: str
     CHROMA_COLLECTION_NAME: str
