@@ -1,10 +1,8 @@
-import asyncio
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import asyncpg
 import chromadb
 from sentence_transformers import SentenceTransformer
 from urllib.parse import urlparse
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from ..clients.grammar_llm_client import GrammarLLMClient
 from ..core.config import settings
@@ -21,6 +19,9 @@ class ChromaCollectionNotFound(Exception):
     pass
 
 class GrammarService:
+    # 커넥션 풀을 저장할 클래스 변수
+    _pool: Optional[asyncpg.Pool] = None
+
     def __init__(self, client: GrammarLLMClient):
         # LLM Client
         self.client = client
@@ -40,22 +41,44 @@ class GrammarService:
         except Exception as e:
             raise ChromaCollectionNotFound(f"Failed to get collection '{collection_name}': {e}")
         
-        # PostgreSQL Client
-        self._db_dsn = (
-            f"host={settings.POSTGRES_HOST} "
-            f"port={settings.POSTGRES_PORT} "
-            f"dbname={settings.POSTGRES_DB} "
-            f"user={settings.POSTGRES_USER} "
-            f"password={settings.POSTGRES_PASSWORD}"
-        )
+        # PostgreSQL Connection Settings
+        self._db_connect_kwargs = {
+            "host": settings.POSTGRES_HOST,
+            "port": settings.POSTGRES_PORT,
+            "database": settings.POSTGRES_DB,
+            "user": settings.POSTGRES_USER,
+            "password": settings.POSTGRES_PASSWORD,
+            "min_size": 5,
+            "max_size": 20,
+        }
         
         # SentenceTransformer Embedder
         self.embedder = SentenceTransformer("jhgan/ko-sroberta-multitask")
 
-    def _search_grammar_db_sync(self, corrected_errors: List[str]) -> List[GrammarDBInfo]:
-        grammar_info_list: List[GrammarDBInfo] = []
+    async def initialize_db_pool(self):
+        """커넥션 풀을 초기화하는 비동기 메서드"""
 
-        # 빈 문자열 제거 + 중복 제거
+        if GrammarService._pool is None:
+            GrammarService._pool = await asyncpg.create_pool(**self._db_connect_kwargs)
+
+    async def close_db_pool(self):
+        """커넥션 풀을 닫는 비동기 메서드 (애플리케이션 종료 시 호출)"""
+
+        if GrammarService._pool is not None:
+            await GrammarService._pool.close()
+            GrammarService._pool = None
+
+    async def _search_grammar_db(self, corrected_errors: List[str]) -> List[GrammarDBInfo]:
+        """
+        PostgreSQL 커넥션 풀을 사용하여 문법 DB를 비동기적으로 검색합니다.
+        """
+
+        if GrammarService._pool is None:
+            # 풀이 초기화되지 않았다면 초기화 시도
+            await self.initialize_db_pool()
+        
+        grammar_info_list: List[GrammarDBInfo] = []
+        
         seen: set[str] = set()
         targets: List[str] = []
         for e in corrected_errors:
@@ -70,26 +93,25 @@ class GrammarService:
         if not targets:
             return grammar_info_list
 
-        with psycopg2.connect(self._db_dsn) as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        # 풀에서 커넥션을 대여하여 사용
+        async with GrammarService._pool.acquire() as conn:
+            # 트랜잭션 블록 시작
+            async with conn.transaction():
                 for elem in targets:
-                    # pg_trgm 이용: headword와 유사한 항목 1개 가져오기
-                    # headword % %s : trigram 유사도 연산자
-                    cur.execute(
+                    row = await conn.fetchrow(
                         """
                         SELECT headword, pos, topic, meaning, form_info, constraints
                         FROM grammar_items
-                        WHERE headword % %s
-                        ORDER BY similarity(headword, %s) DESC
+                        WHERE headword % $1
+                        ORDER BY similarity(headword, $2) DESC
                         LIMIT 1;
                         """,
-                        (elem, elem),
+                        elem, elem,
                     )
-                    row = cur.fetchone()
+                    
                     if not row:
                         continue
-
-                    # explanation 문자열 구성
+                
                     parts: List[str] = []
 
                     if row.get("meaning"):
@@ -113,23 +135,16 @@ class GrammarService:
                     )
 
         return grammar_info_list
-
-    async def _search_grammar_db(self, corrected_errors: List[str]) -> List[GrammarDBInfo]:
-        # 동기 DB 연결이 이벤트 루프를 막지 않도록, 새로운 스레드 생성
-
-        loop = asyncio.get_running_loop()
-
-        return await asyncio.to_thread(self._search_grammar_db_sync, corrected_errors)
-
+    
     async def attach_grammar_feedback(self, sentence: Sentence) -> GrammarFeedback:
 
+        # 1. ChromaDB 쿼리
         query_embedding = self.embedder.encode(sentence.original_sentence).tolist()
         n_results = 5
 
         results = self.collection.query(
             query_embeddings=[query_embedding],
             n_results=n_results,
-            # metadata 필터링: 필요하다면 where={'grade': 'TOPIK 3'} 등을 추가
             include=['documents', 'metadatas', 'distances']
         )
 
@@ -153,24 +168,22 @@ class GrammarService:
                     print(f"Error processing ChromaDB result metadata: {e}")
                     continue
 
-        # 원본 문장, 오류가 있는 문장 5개를 LLM에게 보내 교정 문장, 교정한 문법 요소/형태 받기
+        # 2. 1차 LLM 호출 
         first_llm_input = {
             "original_sentence": sentence.original_sentence,
             "error_examples": [ex.model_dump() for ex in error_examples]
         }
 
         correction_result_data: Dict[str, Any] = await self.client.get_corrected_sentence(first_llm_input)
-
         correction_result = CorrectionOutput(**correction_result_data)
 
         corrected_sentence = correction_result.corrected_sentence
         corrected_errors = correction_result.errors
 
-        # 교정한 문법 요소/형태를 문법 DB에서 검색 -> postgres container 5432 포트로 접속해서
-        # postgres trgm으로 저장된 document 검색
+        # 3. 문법 정보 DB 쿼리
         grammar_db_info_list: List[GrammarDBInfo] = await self._search_grammar_db(corrected_errors)
 
-        # 원본 문장, 교정 문장, 문법 DB 정보를 LLM에게 보내 최종 피드백 생성
+        # 4. 2차 LLM 호출
         second_llm_input = {
             "original_sentence": sentence.original_sentence,
             "corrected_sentence": corrected_sentence,
@@ -178,8 +191,6 @@ class GrammarService:
         }
 
         final_feedback_data: Dict[str, Any] = await self.client.get_grammar_feedback(second_llm_input)
-        
-        # 최종 결과를 GrammarFeedback 스키마로 파싱하여 반환합니다.
         final_feedback = GrammarFeedback(**final_feedback_data)
         
         return final_feedback
