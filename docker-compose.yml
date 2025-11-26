@@ -68,11 +68,15 @@ services:
       - "8080:8080"
     environment:
       - CLOVA_API_KEY=${CLOVA_API_KEY}
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - KAFKA_TOPIC=collect-events
       - ELASTICSEARCH_HOST=http://elasticsearch:9200
       - CHROMA_HOST=http://chromadb:8000
       - CHROMA_COLLECTION_NAME=korean_sentences
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=grammar
+      - POSTGRES_PASSWORD=grammarpassword
     depends_on:
       - chromadb
       - elasticsearch
@@ -82,7 +86,7 @@ services:
     build: ./collector
     container_name: collector
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - KAFKA_TOPIC=collect-events
       - CSV_PATH=/data/grammar_errors.csv
     volumes:
