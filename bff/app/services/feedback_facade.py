@@ -1,5 +1,5 @@
 import asyncio
-
+import datetime
 from typing import List
 
 from .context_service import ContextService
@@ -8,6 +8,7 @@ from .sentence_service import SentenceService
 from .collect_event_publisher import CollectEventPublisher, GrammarFeedbackEvent
 from ..schemas.feedback_request import FeedbackRequest
 from ..schemas.feedback_response import FeedbackResponse, ContextFeedback, GrammarFeedback, Sentence
+from ..util.logger import log_task_exception
 
 class FeedbackFacade:
     def __init__(
@@ -22,16 +23,18 @@ class FeedbackFacade:
         self.sentence_service = sentence_service
         self.collect_event_publisher = collect_event_publisher
 
-    def _build_grammar_event(self, sentence: Sentence) -> GrammarFeedbackEvent:
+    def _build_grammar_event(self, sentence: Sentence, user_id: str) -> GrammarFeedbackEvent:
         gf = sentence.grammar_feedback
         return GrammarFeedbackEvent(
+            user_id=user_id,
+            timestamp= datetime.datetime.now().isoformat(),
             sentence_id=sentence.sentence_id,
             original_text=sentence.original_sentence,
             corrected_text=gf.corrected_sentence,
             feedbacks=gf.feedbacks
         )
 
-    async def create_feedback(self, request: FeedbackRequest) -> FeedbackResponse:
+    async def create_feedback(self, request: FeedbackRequest, user_id: str) -> FeedbackResponse:
         # 1. 문맥 피드백 코루틴 준비
         context_task = self.context_service.create_context_feedback(
             title=request.title,
@@ -77,16 +80,18 @@ class FeedbackFacade:
                 print(f"Grammar task for '{sentence.original_sentence}' failed: {result}")
 
         events: List[GrammarFeedbackEvent] = [
-            self._build_grammar_event(sentence)
+            self._build_grammar_event(sentence, user_id)
             for sentence in error_sentences
             if sentence.grammar_feedback is not None
         ]
 
         # 8. 별도의 스레드에서 새로운 데이터 수집 이벤트 발행
         if events:
-            asyncio.create_task(
-                asyncio.to_thread(self.collect_event_publisher.publish_safe, events)
+            collector_task = asyncio.create_task(
+                asyncio.to_thread(self.collect_event_publisher.publish_safe, events),
+                name="Collect_Event_Publishing_Task"
             )
+            collector_task.add_done_callback(log_task_exception)
 
         # 9. 최종 응답 조립
         return FeedbackResponse(
