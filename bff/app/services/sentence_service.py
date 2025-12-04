@@ -6,7 +6,7 @@ import kss
 
 class SentenceService:
 
-    def __init__(self, error_threshold: float = 6.0):
+    def __init__(self, error_threshold: float = 4.0):
         self.mecab = Mecab()
         self.ERROR_THRESHOLD = error_threshold
 

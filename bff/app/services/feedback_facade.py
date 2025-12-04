@@ -8,7 +8,7 @@ from .sentence_service import SentenceService
 from .collect_event_publisher import CollectEventPublisher, GrammarFeedbackEvent
 from ..schemas.feedback_request import FeedbackRequest
 from ..schemas.feedback_response import FeedbackResponse, ContextFeedback, GrammarFeedback, Sentence
-from ..util.logger import log_task_exception
+from ..util.logger import log_task_exception, logger
 
 class FeedbackFacade:
     def __init__(
@@ -50,6 +50,7 @@ class FeedbackFacade:
         # 4. 문법 교정 코루틴 리스트 준비
         grammar_tasks = []
         error_sentences = [s for s in sentences if s.is_error_candidate]
+        logger.info(f"형태소 분석 기반 오류 후보 문장: {len(error_sentences)}개")
 
         for sentence in error_sentences:
             task = self.grammar_service.attach_grammar_feedback(sentence)
@@ -93,7 +94,16 @@ class FeedbackFacade:
             )
             collector_task.add_done_callback(log_task_exception)
 
-        # 9. 최종 응답 조립
+        # 9. 최종 응답 데이터 정리 및 조립
+        for sentence in sentences:
+            # grammar_feedback이 있고, 그 안에 feedbacks 리스트가 비어있지 않으면 오류가 있는 문장
+            if sentence.grammar_feedback and sentence.grammar_feedback.feedbacks:
+                sentence.is_error = True
+            else:
+                sentence.is_error = False
+                # is_error가 False이면 grammar_feedback을 null로 설정하여 불필요한 데이터 제외
+                sentence.grammar_feedback = None
+
         return FeedbackResponse(
             context_feedback=context_feedback,
             sentences=sentences,

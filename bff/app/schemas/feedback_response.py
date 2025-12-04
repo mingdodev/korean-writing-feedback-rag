@@ -21,6 +21,7 @@ class ErrorExample(BaseModel):
 
 # 1차 LLM 출력 모델
 class CorrectionOutput(BaseModel):
+    is_error: bool = Field(..., description="문장 오류 여부")
     corrected_sentence: str = Field(..., description="LLM이 교정한 문장")
     errors: List[str] = Field(..., description="교정된 문법 요소/형태 목록 (예: '과', '이')")
 
@@ -45,7 +46,8 @@ class GrammarFeedback(BaseModel):
 class Sentence(BaseModel):
     sentence_id: int
     original_sentence: str
-    is_error_candidate: bool = False
+    is_error: bool = False
+    is_error_candidate: bool = Field(default=False, exclude=True)
     grammar_feedback: Optional[GrammarFeedback] = None
 
 class FeedbackResponse(BaseModel):

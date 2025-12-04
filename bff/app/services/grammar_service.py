@@ -15,6 +15,7 @@ from ..schemas.feedback_response import (
     CorrectionOutput, 
     GrammarDBInfo
 )
+from ..util.logger import logger
 
 class ChromaCollectionNotFound(Exception):
     pass
@@ -207,11 +208,22 @@ class GrammarService:
             print(f"1st LLM call failed for '{sentence.original_sentence}'. Error: {e}")
             raise
 
+        logger.info(f"1차 LLM 결과 ({sentence.original_sentence:20s}): is_error={correction_result.is_error}, corrected='{correction_result.corrected_sentence}', errors={correction_result.errors}")
+
+        # LLM이 오류가 없다고 판단하면, 여기서 피드백 절차 종료
+        if not correction_result.is_error:
+            return GrammarFeedback(
+                corrected_sentence=sentence.original_sentence,
+                feedbacks=[]
+            )
+
         corrected_sentence = correction_result.corrected_sentence
         corrected_errors = correction_result.errors
 
         # 3. 문법 정보 DB 쿼리
+        logger.info(f"문법 DB 검색 요소: {corrected_errors}")
         grammar_db_info_list: List[GrammarDBInfo] = await self._search_grammar_db(corrected_errors)
+        logger.info(f"문법 DB 검색 결과: {[info.model_dump() for info in grammar_db_info_list]}")
 
         # 4. 2차 LLM 호출
         second_llm_input = {
