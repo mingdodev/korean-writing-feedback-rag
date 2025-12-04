@@ -11,3 +11,5 @@ sentence-transformers == 5.1.2
 chromadb == 1.1.1
 asyncpg == 0.31.0
 kafka-python == 2.3.0
+elasticsearch8 == 8.19.2
+aiohttp == 3.13.2
