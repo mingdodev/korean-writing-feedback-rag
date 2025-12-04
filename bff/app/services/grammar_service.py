@@ -234,7 +234,7 @@ class GrammarService:
         return error_examples
 
     async def attach_grammar_feedback(self, sentence: Sentence) -> GrammarFeedback:
-
+        logger.info(f"\n\n===== 피드백 생성 시작: '{sentence.original_sentence}' =====")
         # ------------------------------
         # 1. ChromaDB 쿼리
         # ------------------------------
@@ -251,85 +251,65 @@ class GrammarService:
             logger.error(f"ChromaDB query failed for '{sentence.original_sentence}': {e}")
             results = {"documents": [[]], "metadatas": [[]], "distances": [[]]}
 
-        error_examples: List[ErrorExample] = []
-
+        chroma_examples: List[ErrorExample] = []
         documents = results.get("documents", [[]])[0]
         metadatas = results.get("metadatas", [[]])[0]
         distances = results.get("distances", [[]])[0]
 
-        # 코사인 유사도 계산 (Chroma는 distance를 반환하므로 similarity = 1 - distance 로 간단 근사)
         best_similarity = None
         if distances:
-            best_distance = distances[0]
-            best_similarity = 1.0 - best_distance
-            logger.info(
-                f"Chroma top distance={best_distance:.4f}, similarity≈{best_similarity:.4f} "
-                f"for '{sentence.original_sentence}'"
-            )
+            best_similarity = 1.0 - distances[0]
 
-        # --------------------------
-        # 1-1. Chroma 결과 → ErrorExample
-        # --------------------------
         if documents and metadatas:
             for doc, metadata_dict in zip(documents, metadatas):
                 try:
-                    original_sentence_from_db = doc
                     error_words_raw = metadata_dict.get("error_words")
-                    error_words_data = []
-
-                    if isinstance(error_words_raw, str):
-                        try:
-                            error_words_data = json.loads(error_words_raw)
-                        except json.JSONDecodeError:
-                            logger.warning(f"Failed to decode error_words JSON string: {error_words_raw}")
-                    elif isinstance(error_words_raw, list):
-                        error_words_data = error_words_raw
-
-                    error_words: List[ErrorWord] = [
-                        ErrorWord(**ew) for ew in error_words_data if isinstance(ew, dict)
-                    ]
-
-                    example = ErrorExample(
-                        original_sentence=original_sentence_from_db,
-                        error_words=error_words,
+                    error_words_data = json.loads(error_words_raw) if isinstance(error_words_raw, str) else (error_words_raw or [])
+                    
+                    chroma_examples.append(
+                        ErrorExample(
+                            original_sentence=doc,
+                            error_words=[ErrorWord(**ew) for ew in error_words_data if isinstance(ew, dict)]
+                        )
                     )
-                    error_examples.append(example)
-
                 except Exception as e:
                     logger.error(f"Error processing ChromaDB result metadata for doc '{doc}': {e}")
-                    continue
+
+        log_msg = [f"--- 1. ChromaDB 검색 결과 (Best Sim: {best_similarity:.4f}) ---"]
+        if chroma_examples:
+            for ex in chroma_examples:
+                log_msg.append(f"  - {ex.original_sentence}")
+        else:
+            log_msg.append("  - 결과 없음")
+        logger.info("\n".join(log_msg))
+
+        error_examples = chroma_examples
 
         # --------------------------
         # 1-2. 유사도가 낮으면 ES 문법 패턴 검색 결과 추가
         # --------------------------
-        CHROMA_SIM_THRESHOLD = 0.60  # 적당히 조절 가능
-
-        # (1) 아예 Chroma 결과가 없거나
-        # (2) best_similarity가 기준치보다 낮으면 → ES에서 패턴 기반 예시를 가져와 추가
-        need_es_examples = (
-            not error_examples or
-            (best_similarity is not None and best_similarity < CHROMA_SIM_THRESHOLD)
-        )
+        CHROMA_SIM_THRESHOLD = 0.60
+        need_es_examples = not error_examples or (best_similarity is not None and best_similarity < CHROMA_SIM_THRESHOLD)
 
         if need_es_examples:
-            logger.info(
-                f"Chroma similarity가 낮거나 결과가 부족하여 ES 패턴 검색을 추가로 수행합니다. "
-                f"best_similarity={best_similarity}, sentence='{sentence.original_sentence}'"
-            )
+            logger.info(f"Chroma similarity가 낮거나 결과가 부족하여 ES 패턴 검색을 추가로 수행합니다.")
             try:
-                # ES 검색을 위해 형태소 분석 수행 및 sentence 객체에 할당
                 sentence.words = analyze_sentence_to_words(sentence.original_sentence)
-                
                 es_examples = await self._search_pattern_es(sentence, max_results=5)
                 
-                # 중복 제거 로직: 기존 예시 문장들을 set으로 관리
+                log_msg = [f"--- 2. ES 패턴 검색 결과 ---"]
+                if es_examples:
+                    for ex in es_examples:
+                        log_msg.append(f"  - {ex.original_sentence}")
+                else:
+                    log_msg.append("  - 결과 없음")
+                logger.info("\n".join(log_msg))
+
                 existing_sentences = {ex.original_sentence for ex in error_examples}
-                
                 for es_ex in es_examples:
                     if es_ex.original_sentence not in existing_sentences:
                         error_examples.append(es_ex)
                         existing_sentences.add(es_ex.original_sentence)
-                        
             except Exception as e:
                 logger.error(f"ES 패턴 검색 중 오류: {e}")
 
@@ -343,25 +323,33 @@ class GrammarService:
             correction_result_data: Dict[str, Any] = await self.client.get_corrected_sentence(first_llm_input)
             correction_result = CorrectionOutput(**correction_result_data)
         except Exception as e:
-            print(f"1st LLM call failed for '{sentence.original_sentence}'. Error: {e}")
+            logger.error(f"1st LLM call failed for '{sentence.original_sentence}'. Error: {e}", exc_info=True)
             raise
 
-        logger.info(f"1차 LLM 결과 ({sentence.original_sentence:20s}): is_error={correction_result.is_error}, corrected='{correction_result.corrected_sentence}', errors={correction_result.errors}")
+        log_msg = [f"--- 3. 1차 LLM 교정 결과 ---"]
+        log_msg.append(f"  - is_error: {correction_result.is_error}")
+        log_msg.append(f"  - Corrected: '{correction_result.corrected_sentence}'")
+        log_msg.append(f"  - Errors: {correction_result.errors}")
+        logger.info("\n".join(log_msg))
 
-        # LLM이 오류가 없다고 판단하면, 여기서 피드백 절차 종료
         if not correction_result.is_error:
-            return GrammarFeedback(
-                corrected_sentence=sentence.original_sentence,
-                feedbacks=[]
-            )
+            logger.info("오류 없음으로 판단, 피드백 생성 절차를 중단합니다.")
+            return GrammarFeedback(corrected_sentence=sentence.original_sentence, feedbacks=[])
 
         corrected_sentence = correction_result.corrected_sentence
         corrected_errors = correction_result.errors
 
         # 3. 문법 정보 DB 쿼리
-        logger.info(f"문법 DB 검색 요소: {corrected_errors}")
+        logger.info(f"--- 4. 문법 DB 검색 ---\n  - 검색 요소: {corrected_errors}")
         grammar_db_info_list: List[GrammarDBInfo] = await self._search_grammar_db(corrected_errors)
-        logger.info(f"문법 DB 검색 결과: {[info.model_dump() for info in grammar_db_info_list]}")
+        
+        log_msg = [f"--- 5. 문법 DB 검색 결과 ---"]
+        if grammar_db_info_list:
+            for info in grammar_db_info_list:
+                log_msg.append(f"  - Element: {info.grammar_element}, Explanation: {info.explanation[:50]}...")
+        else:
+            log_msg.append("  - 결과 없음")
+        logger.info("\n".join(log_msg))
 
         # 4. 2차 LLM 호출
         second_llm_input = {
@@ -374,7 +362,8 @@ class GrammarService:
             final_feedback_data: Dict[str, Any] = await self.client.get_grammar_feedback(second_llm_input)
             final_feedback = GrammarFeedback(**final_feedback_data)
         except Exception as e:
-            print(f"2nd LLM call failed for '{sentence.original_sentence}'. Error: {e}")
+            logger.error(f"2nd LLM call failed for '{sentence.original_sentence}'. Error: {e}", exc_info=True)
             raise
-
+        
+        logger.info(f"===== 피드백 생성 종료: '{sentence.original_sentence}' =====\n")
         return final_feedback

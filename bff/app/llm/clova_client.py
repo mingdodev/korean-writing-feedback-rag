@@ -77,12 +77,6 @@ class ClovaStudioClient:
             "repetitionPenalty": repetition_penalty,
         }
         
-        print("\n" + "="*50)
-        print("[CLOVA API REQUEST (chat)]")
-        print(f"URL: {self.url}")
-        print("Payload:\n" + json.dumps(payload, indent=2, ensure_ascii=False))
-        print("="*50 + "\n")
-
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 resp = await client.post(
@@ -92,11 +86,6 @@ class ClovaStudioClient:
                 )
                 resp.raise_for_status()
                 body = resp.json()
-            
-            print("\n" + "-"*50)
-            print("[CLOVA API RESPONSE SUCCESS (chat)]")
-            print("Body:\n" + json.dumps(body, indent=2, ensure_ascii=False))
-            print("-"*50 + "\n")
 
         except httpx.HTTPStatusError as e:
             print("\n" + "#"*50)
@@ -146,12 +135,6 @@ class ClovaStudioClient:
             },
         }
 
-        print("\n" + "="*50)
-        print(f"[CLOVA API REQUEST (chat_structred) - Model: {response_model.__name__}]")
-        print(f"URL: {self.url}")
-        print("Payload:\n" + json.dumps(payload, indent=2, ensure_ascii=False))
-        print("="*50 + "\n")
-
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
@@ -161,12 +144,6 @@ class ClovaStudioClient:
                 )
                 response.raise_for_status()
                 body = response.json()
-
-            print("\n" + "-"*50)
-            print("[CLOVA API RESPONSE SUCCESS (chat_structred)]")
-            print("Body:\n" + json.dumps(body, indent=2, ensure_ascii=False))
-            print("-"*50 + "\n")
-            
 
         except httpx.HTTPStatusError as e:
             print("\n" + "#"*50)
