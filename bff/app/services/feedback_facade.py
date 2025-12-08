@@ -68,17 +68,22 @@ class FeedbackFacade:
         grammar_feedbacks: list[GrammarFeedback | None] = results[1:]
 
         if isinstance(context_result, Exception):
-            print(f"Context task failed: {context_result}")
+            logger.error(f"Context task failed: {context_result}", exc_info=True)
             context_feedback = ContextFeedback(feedback="문맥 피드백 생성에 실패했습니다.") 
         else:
             context_feedback: ContextFeedback = context_result
+        
+        log_msg = [f"\n===== 전체 문맥 피드백 결과 ====="]
+        log_msg.append(context_feedback.feedback)
+        log_msg.append("=" * 30)
+        logger.info("\n".join(log_msg))
 
         # 7. 생성한 문법 피드백을 원본 문장 데이터에 연결
         for sentence, result in zip(error_sentences, grammar_feedbacks):
             if isinstance(result, GrammarFeedback):
                 sentence.grammar_feedback = result
             else:
-                print(f"Grammar task for '{sentence.original_sentence}' failed: {result}")
+                logger.error(f"Grammar task for '{sentence.original_sentence}' failed: {result}")
 
         events: List[GrammarFeedbackEvent] = [
             self._build_grammar_event(sentence, user_id)
