@@ -39,7 +39,6 @@ services:
   kafka:
     image: apache/kafka:4.1.1
     container_name: kafka
-    restart: always
     ports:
       - "9092:9092"
     environment:
