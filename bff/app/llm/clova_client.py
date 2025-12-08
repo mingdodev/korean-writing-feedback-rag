@@ -61,11 +61,11 @@ class ClovaStudioClient:
     async def chat(
         self,
         messages: List[Message],
-        top_p: float = 0.8,
+        top_p: float = 1.0,
         top_k: int = 0,
-        max_completion_tokens: int = 512,
-        temperature: float = 0.5,
-        repetition_penalty: float = 1.1,
+        max_completion_tokens: int = 1024,
+        temperature: float = 0.1,
+        repetition_penalty: float = 1.,
     ) -> str:
 
         payload: Dict[str, Any] = {
@@ -112,11 +112,11 @@ class ClovaStudioClient:
         self,
         messages: List[Message],
         response_model: Type[T],
-        top_p: float = 0.8,
+        top_p: float = 1.0,
         top_k: int = 0,
-        max_completion_tokens: int = 512,
-        temperature: float = 0.5,
-        repetition_penalty: float = 1.1,
+        max_completion_tokens: int = 1024,
+        temperature: float = 0.1,
+        repetition_penalty: float = 1.,
     ) -> T:
 
         schema = self._extract_pydantic_schema(response_model)
