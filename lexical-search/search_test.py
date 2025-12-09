@@ -1,38 +1,79 @@
 import asyncio
 import re
 from elasticsearch8 import AsyncElasticsearch, BadRequestError
+from konlpy.tag import Mecab
+from standardization import standardize_word
 
 ES_HOST = "http://localhost:9200"
 INDEX_NAME = "graduation_project_data"
 
 """
 정규화 기반 하이브리드 검색 테스트 템플릿 예제
-(현재 사용하고 있지 않음)
 """
+
+# Mecab 전역 인스턴스
+mecab = Mecab()
+
+
+def build_word_data_from_eojeol(eojeol: str) -> dict:
+    """
+    Mecab 형태소 분석 결과를 네 정규화 함수가 기대하는 형태로 변환.
+    반환 형식:
+    {
+      "morphs": [
+        {"morph": "나는", "pos": "NOUN"},
+        {"morph": "을", "pos": "PARTICLE"},
+        ...
+      ]
+    }
+
+    여기서는 Mecab의 태그를 그대로 pos에 넣고,
+    내부에서 is_category(pos, posCategory.*) 로 분류한다고 가정.
+    """
+    morphs = mecab.pos(eojeol)  # 예: [("나", "NP"), ("는", "JX")]
+
+    return {
+        "morphs": [
+            {"morph": morph, "pos": pos}
+            for morph, pos in morphs
+        ]
+    }
 
 
 def normalize_query(sentence: str) -> str:
     """
-    1. 기본적인 정규화 로직 (예시)
-       - 양 끝 공백 제거
-       - 여러 공백을 하나로 통일
-       - 소문자 변환 (필요 없으면 빼도 됨)
-    2. 인덱싱 때 normalized_tags를 만들 때 쓴 규칙이 있다면,
-       여기랑 최대한 동일하게 맞춰주는 게 좋음.
+    1. 문장 기본 정리
+    2. Mecab으로 형태소 분석
+    3. 각 어절을 standardize_word 규칙에 따라 정규화
+    4. 정규화된 어절들을 공백으로 이어서 하나의 문자열로 반환
     """
-    # 필요에 따라 로직 더 추가해도 됨
     s = sentence.strip()
-    # 연속 공백 -> 하나
+    if not s:
+        return ""
+
+    # 연속 공백 정리
     s = re.sub(r"\s+", " ", s)
-    # 소문자화 (영어 섞일수도 있으면)
-    s = s.lower()
-    return s
+
+    # 어절 단위로 나누기
+    eojeols = s.split()
+
+    normalized_tokens = []
+
+    for eojeol in eojeols:
+        word_data = build_word_data_from_eojeol(eojeol)
+        normalized = standardize_word(word_data)  # 네가 정의한 그 함수!
+        if normalized:
+            normalized_tokens.append(normalized)
+
+    # ES에 인덱싱된 normalized_tags와 최대한 동일한 포맷으로 맞추기
+    # (보통 "NOUN_X는 NOUN_X하고 NOUN_O를 VERB_O_N었다다" 이런 식)
+    return " ".join(normalized_tokens)
 
 
 async def hybrid_search_documents(es: AsyncElasticsearch, query_text: str, max_results: int = 5):
     """
     1. 사용자 문장 입력
-    2. 정규화 (normalize_query)
+    2. 형태소 기반 정규화 (normalize_query)
     3. 정규화된 문장으로 normalized_tags 필드 검색 (token_analyzer 사용)
     4. 결과 부족하면 normalized_tags.ngram으로 N-gram 기반 보정
     """
@@ -57,8 +98,6 @@ async def hybrid_search_documents(es: AsyncElasticsearch, query_text: str, max_r
         "match": {
             "normalized_tags": {
                 "query": normalized_query,
-                # analyzer는 인덱스에 설정된 token_analyzer가 자동 적용됨
-                # 필요하면 여기 operator, minimum_should_match 등을 추가 가능
             }
         }
     }
@@ -85,7 +124,6 @@ async def hybrid_search_documents(es: AsyncElasticsearch, query_text: str, max_r
         ngram_match_query = {
             "match": {
                 "normalized_tags.ngram": {
-                    # 여기서도 normalized_query를 쓰는 게 일관됨
                     "query": normalized_query,
                     "minimum_should_match": "50%",
                 }
@@ -131,9 +169,7 @@ async def main():
     try:
         # 샘플 문장
         queries = [
-            "나는 어제 밥을 먹었다",
-            "오늘 점심에 밥을 먹었어요",
-            "예쁜 꽃이 있었다",
+            "나는 친구하고 김밥를 먹었다.",
         ]
 
         for q in queries:
@@ -146,6 +182,7 @@ async def main():
     except Exception as e:
         print("\n--- FATAL ERROR (Other) ---")
         print(f"오류 상세: {e}")
+        raise
     finally:
         await es.close()
 
