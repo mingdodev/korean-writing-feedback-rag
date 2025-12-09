@@ -3,6 +3,8 @@ from typing import Any, Dict, List, Literal, Type, TypeVar
 
 import httpx
 from pydantic import BaseModel
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+from aiolimiter import AsyncLimiter
 
 from ..core.config import settings
 
@@ -13,6 +15,13 @@ T = TypeVar("T", bound=BaseModel)
 
 class ClovaStudioError(Exception):
     pass
+
+def is_rate_limit_error(exception: BaseException) -> bool:
+    """HTTP 429 에러일 때만 재시도하기 위한 확인 함수"""
+    return (
+        isinstance(exception, httpx.HTTPStatusError) and
+        exception.response.status_code == 429
+    )
 
 class ClovaStudioClient:
 
@@ -25,6 +34,8 @@ class ClovaStudioClient:
         self.api_key = api_key
         self.url = url
         self.timeout = timeout
+        # 분당 60회로 요청 속도 제한 (QPM 60)
+        self.limiter = AsyncLimiter(60, 60)
 
     # ------------------------------------------------------------------
 
@@ -58,6 +69,11 @@ class ClovaStudioClient:
 
     # 일반 API 요청 메서드
 
+    @retry(
+        wait=wait_exponential(multiplier=1, min=2, max=60),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception(is_rate_limit_error)
+    )
     async def chat(
         self,
         messages: List[Message],
@@ -78,14 +94,15 @@ class ClovaStudioClient:
         }
         
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(
-                    self.url,
-                    headers=self._build_headers(),
-                    json=payload,
-                )
-                resp.raise_for_status()
-                body = resp.json()
+            async with self.limiter:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    resp = await client.post(
+                        self.url,
+                        headers=self._build_headers(),
+                        json=payload,
+                    )
+                    resp.raise_for_status()
+                    body = resp.json()
 
         except httpx.HTTPStatusError as e:
             print("\n" + "#"*50)
@@ -108,6 +125,11 @@ class ClovaStudioClient:
 
     # Structed Output 기반 API 요청 메서드
 
+    @retry(
+        wait=wait_exponential(multiplier=1, min=2, max=60),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception(is_rate_limit_error)
+    )
     async def chat_structred(
         self,
         messages: List[Message],
@@ -136,14 +158,15 @@ class ClovaStudioClient:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    self.url,
-                    headers=self._build_headers(),
-                    json=payload,
-                )
-                response.raise_for_status()
-                body = response.json()
+            async with self.limiter:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.post(
+                        self.url,
+                        headers=self._build_headers(),
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    body = response.json()
 
         except httpx.HTTPStatusError as e:
             print("\n" + "#"*50)

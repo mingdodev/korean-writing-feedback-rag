@@ -13,3 +13,5 @@ asyncpg == 0.31.0
 kafka-python == 2.3.0
 elasticsearch8 == 8.19.2
 aiohttp == 3.13.2
+tenacity == 8.2.3
+aiolimiter == 1.1.0
