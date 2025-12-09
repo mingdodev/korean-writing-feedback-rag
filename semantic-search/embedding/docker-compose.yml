@@ -5,10 +5,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ../../volumes/chroma_sentence:/chroma/chroma
+      - ../../volumes/chroma_sentence:/data
     environment:
       - IS_PERSISTENT=TRUE
-      - PERSIST_DIRECTORY=/chroma/chroma
+      - PERSIST_DIRECTORY=/data
       - ANONYMIZED_TELEMETRY=FALSE
 
   chromadb-error-words:
@@ -17,8 +17,8 @@ services:
     ports:
       - "8001:8000"
     volumes:
-      - ../../volumes/chroma_error_words:/chroma/chroma
+      - ../../volumes/chroma_error_words:/data
     environment:
       - IS_PERSISTENT=TRUE
-      - PERSIST_DIRECTORY=/chroma/chroma
+      - PERSIST_DIRECTORY=/data
       - ANONYMIZED_TELEMETRY=FALSE

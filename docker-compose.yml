@@ -5,10 +5,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./volumes/chroma_sentence:/chroma/chroma
+      - ./volumes/chroma_sentence:/data
     environment:
       - IS_PERSISTENT=TRUE
-      - PERSIST_DIRECTORY=/chroma/chroma
+      - PERSIST_DIRECTORY=/data
       - ANONYMIZED_TELEMETRY=FALSE
 
   elasticsearch:
