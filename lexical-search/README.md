@@ -16,8 +16,8 @@ ChromaDB 기반 의미 검색에서 충분한 코사인 유사도를 가진 문�
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **태깅 정보로 표기할 태그**            | DETERMINER (관형사), ADVERB (부사), INTERJECTION (감탄사), AFFIX (접사), RADIX (어근), NUMERAL (수사), PUNCTUATION (구두점), SYMBOL (기호), UNKNOWN (불능 범주) |
 | **자연어로 보존 할 태그**            | PARTICLE (조사), ENDING (어미), DEPENDENT_NOUN (의존 명사), AUXILIARY (보조 용언) |
-| **끝 어절 받침 유무 정보 필요한 태그**    | NOUN (명사), DEPENDENT_NOUN (의존 명사), VERB (동사), AUXILIARY (보조 용언), ADJECTIVE (형용사)                                                                                     |
-| **끝 어절 모음 양성/음성 정보 필요한 태그** | VERB (동사), AUXILIARY (보조 용언), ADJECTIVE (형용사)                                                                                                                        |
+| **끝 어절 받침 유무 표기 태그**    | NOUN (명사), DEPENDENT_NOUN (의존 명사), VERB (동사), AUXILIARY (보조 용언), ADJECTIVE (형용사)                                                                                     |
+| **끝 어절 모음의 'ㅏ', 'ㅗ' 여부 표기 태그** | VERB (동사), AUXILIARY (보조 용언), ADJECTIVE (형용사)                                                                                                                        |
 
 <br>
 

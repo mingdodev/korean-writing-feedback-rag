@@ -164,7 +164,6 @@ class GrammarService:
         """
         words = getattr(sentence, "words", None)
         if not words:
-            # 형태소 분석 결과가 아직 없다면, 여기서 형태소 분석을 호출하도록 확장할 수 있음
             logger.warning(f"Sentence에 words 정보가 없어 ES 패턴 검색을 건너뜁니다. sentence={sentence.original_sentence}")
             return []
 
@@ -175,34 +174,84 @@ class GrammarService:
         if not normalized_query:
             logger.warning(f"정규화 쿼리가 비어 있어 ES 패턴 검색을 건너뜁니다. sentence={sentence.original_sentence}")
             return []
+        
+        found_ids: set[str] = set()
+        hits_all: List[Dict[str, Any]] = []
 
-        # 2) 1단계: normalized_tags match
-        query = {
+        # -----------------------
+        # 1단계: normalized_tags match
+        # -----------------------
+        query_exact = {
             "match": {
                 "normalized_tags": {
-                    "query": normalized_query
+                    "query": normalized_query,
                 }
             }
         }
 
         try:
-            resp = await self.es.search(
+            resp_exact = await self.es_client.search(
                 index=self.es_index,
-                query=query,
+                query=query_exact,
                 size=max_results,
             )
         except Exception as e:
-            logger.error(f"ES 패턴 검색 실패: {e}")
+            logger.error(f"ES 1차 패턴 검색 실패: {e}")
             return []
 
-        hits = resp.get("hits", {}).get("hits", [])
-        if not hits:
+        first_hits = resp_exact.get("hits", {}).get("hits", []) or []
+        for h in first_hits:
+            if len(hits_all) >= max_results:
+                break
+            hits_all.append(h)
+            found_ids.add(h["_id"])
+
+        # -----------------------
+        # 2단계: normalized_tags.ngram 보정
+        # -----------------------
+        needed = max_results - len(hits_all)
+
+        if needed > 0:
+            query_ngram = {
+                "match": {
+                    "normalized_tags.ngram": {
+                        "query": normalized_query,
+                        "minimum_should_match": "50%",
+                    }
+                }
+            }
+
+            try:
+                resp_ngram = await self.es_client.search(
+                    index=self.es_index,
+                    query=query_ngram,
+                    size=needed * 3,  # 중복 제거 고려해서 넉넉히
+                )
+            except Exception as e:
+                logger.error(f"ES 2차(N-gram) 패턴 검색 실패: {e}")
+                resp_ngram = {}
+
+            ngram_hits = resp_ngram.get("hits", {}).get("hits", []) or []
+            added = 0
+            for h in ngram_hits:
+                if added >= needed:
+                    break
+                if h["_id"] in found_ids:
+                    continue
+                hits_all.append(h)
+                found_ids.add(h["_id"])
+                added += 1
+
+        # -----------------------
+        # 최종 hits_all → ErrorExample 변환
+        # -----------------------
+        if not hits_all:
             return []
 
         error_examples: List[ErrorExample] = []
 
-        for hit in hits:
-            src = hit.get("_source", {})
+        for hit in hits_all:
+            src = hit.get("_source", {}) or {}
             original_text = src.get("original_text")
             metadata = src.get("metadata", {}) or {}
 
@@ -217,12 +266,12 @@ class GrammarService:
             elif isinstance(error_words_raw, list):
                 error_words_data = error_words_raw
 
+            if not original_text:
+                continue
+
             error_words: List[ErrorWord] = [
                 ErrorWord(**ew) for ew in error_words_data if isinstance(ew, dict)
             ]
-
-            if not original_text:
-                continue
 
             error_examples.append(
                 ErrorExample(
@@ -232,7 +281,7 @@ class GrammarService:
             )
 
         return error_examples
-
+        
     async def attach_grammar_feedback(self, sentence: Sentence) -> GrammarFeedback:
         logger.info(f"\n\n===== 피드백 생성 시작: '{sentence.original_sentence}' =====")
         # ------------------------------
