@@ -70,8 +70,8 @@ def parse_view_html(html: str, grammar_id: int) -> dict:
     # ------------------------
     headword = None
     pos = None
-    topic_level = None
-    topic = None
+    topik_level = None
+    topik = None
     intl_level = None
 
     title_div = soup.find("div", class_="con_tit", string=lambda t: t and "표제어" in t)
@@ -92,10 +92,10 @@ def parse_view_html(html: str, grammar_id: int) -> dict:
                 elif "품사" in th_texts[0]:
                     pos = td_texts[0]
                     if len(th_texts) > 1 and "토픽 등급" in th_texts[1] and len(td_texts) > 1:
-                        topic_level = td_texts[1]
+                        topik_level = td_texts[1]
 
                 elif "토픽" in th_texts[0]:
-                    topic = td_texts[0]
+                    topik = td_texts[0]
                     if len(th_texts) > 1 and "국제표준모형 등급" in th_texts[1] and len(td_texts) > 1:
                         intl_level = td_texts[1]
 
@@ -153,8 +153,8 @@ def parse_view_html(html: str, grammar_id: int) -> dict:
         "id": grammar_id,
         "headword": headword,
         "pos": pos,
-        "topic_level": topic_level,
-        "topic": topic,
+        "topik_level": topik_level,
+        "topik": topik,
         "intl_level": intl_level,
         "meaning": meaning,
         # 리스트와 합친 문자열 둘 다 제공

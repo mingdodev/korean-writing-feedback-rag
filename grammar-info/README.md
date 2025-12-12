@@ -15,7 +15,7 @@ LLM이 1차적으로 문장을 교정한 뒤 교정한 문법 항목을 반환�
 | **id**          | 기본 키(문법 항목 고유 ID) |
 | **headword**    | 문법 표제어 |
 | **pos**         | 품사 정보 |
-| **topic**       | TOPIC 등급 |
+| **topik**       | TOPIK 등급 |
 | **meaning**     | 문법 의미 설명 |
 | **form_info**   | 활용·형태 정보 |
 | **constraints** | 사용 제약 조건 |

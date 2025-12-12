@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS grammar_items (
     id           INTEGER PRIMARY KEY,
     headword     TEXT NOT NULL,
     pos          TEXT,
-    topic        TEXT,
+    topik        TEXT,
     meaning      TEXT,
     form_info    TEXT,
     constraints  TEXT

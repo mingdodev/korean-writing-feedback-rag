@@ -117,7 +117,7 @@ class GrammarService:
                     for elem in targets:
                         row = await conn.fetchrow(
                             """
-                            SELECT headword, pos, topic, meaning, form_info, constraints
+                            SELECT headword, pos, topik, meaning, form_info, constraints
                             FROM grammar_items
                             WHERE headword % $1
                             ORDER BY similarity(headword, $2) DESC
@@ -139,8 +139,8 @@ class GrammarService:
                             parts.append(f"제약: {row['constraints']}")
                         if row.get("pos"):
                             parts.append(f"품사: {row['pos']}")
-                        if row.get("topic"):
-                            parts.append(f"토픽 등급: {row['topic']}")
+                        if row.get("topik"):
+                            parts.append(f"토픽 등급: {row['topik']}")
 
                         explanation = " / ".join(parts) if parts else "설명 정보가 없습니다."
 
