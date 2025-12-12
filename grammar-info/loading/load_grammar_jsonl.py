@@ -38,16 +38,16 @@ def main():
         with conn.cursor() as cur:
             sql = """
             INSERT INTO grammar_items (
-                id, headword, pos, topic,
+                id, headword, pos, topik,
                 meaning, form_info, constraints
             ) VALUES (
-                %(id)s, %(headword)s, %(pos)s, %(topic)s,
+                %(id)s, %(headword)s, %(pos)s, %(topik)s,
                 %(meaning)s, %(form_info)s, %(constraints)s
             )
             ON CONFLICT (id) DO UPDATE SET
                 headword    = EXCLUDED.headword,
                 pos         = EXCLUDED.pos,
-                topic       = EXCLUDED.topic,
+                topik       = EXCLUDED.topik,
                 meaning     = EXCLUDED.meaning,
                 form_info   = EXCLUDED.form_info,
                 constraints = EXCLUDED.constraints;
