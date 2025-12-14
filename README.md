@@ -27,14 +27,19 @@ API 서버는 여러 서비스들의 협력을 통해 응답을 생성하는 <st
 #### 1. 입력 데이터 처리
 
 - **KSS** 기반 Sentence Splitter로 글 내용을 문장 단위로 분할
-- **KoNLPy(Mecab-ko) 형태소 분석**을 통해 오류 포함 가능성 있는 문장 태깅
+- **KoNLPy(Mecab-ko) 형태소 분석**을 통해 문법 오류의 가능성이 있는 문장들을 필터링
 
 #### 2. 문법 교정 피드백 생성
 
-- **Clova Studio LLM Structured Output** 기반 1차 교정
-- 교정된 표현과 관련된 **문법 정보 DB 조회**
-- **ChromaDB**로부터 학습자 오류 유형과 유사한 교정 데이터 조회
-- Clova Studio API 호출을 통해 최종 피드백 생성
+1. **ChromaDB 기반 Semantic Search**  
+  : SentenceTransformer 임베딩을 활용해 입력 문장과 의미적으로 유사한 학습자 오류 사례 조회
+2. **ElasticSearch 기반 Lexical Search (Hybrid 보완)**  
+  : 의미 기반 검색 결과가 충분하지 않을 경우,
+    형태 정규화된 문장을 대상으로 형태·문법 구조가 유사한 학습자 오류 사례 조회
+3. **Clova Studio LLM Structured Output** 기반 1차 교정  
+  : 유사한 오류 사례 및 교정 정보를 근거로 응답 정확성 향상
+4. 교정된 문법 항목과 연관된 **문법 정보 DB (PostgreSQL) 조회**
+5. Clova Studio API 호출을 통해 **최종 문법 피드백 생성**
 
 #### 3. 문맥 교정 피드백 생성
 
